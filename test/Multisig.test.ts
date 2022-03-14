@@ -29,24 +29,24 @@ describe("Starknet", function () {
     privateKey = account.privateKey;
     publicKey = account.publicKey;
 
-    let multisigFactory = await starknet.getContractFactory("MultiSig");
+    /*     let multisigFactory = await starknet.getContractFactory("MultiSig");
     multisig = await multisigFactory.deploy({
       owners: [number.toBN(accountAddress)],
       confirmations_required: 1,
-    });
+    }); */
 
     contractFactory = await starknet.getContractFactory("contract");
-    console.log("Started deployment");
+    //console.log("Started deployment");
     contract = await contractFactory.deploy({ initial_balance: 0 });
-
+    /* 
     console.log("Deployed target contract at", contract.address);
     console.log(
       "Deployed account at address:",
       account.starknetContract.address
     );
-    console.log("Private and public key:", privateKey, publicKey);
+    console.log("Private and public key:", privateKey, publicKey); */
   });
-
+  /* 
   it("transaction submit works", async function () {
     txIndex++;
 
@@ -92,5 +92,49 @@ describe("Starknet", function () {
 
     const bal = await contract.call("get_balance");
     expect(bal.res).to.equal(6n);
+  }); */
+  let howmany = 10;
+  it("run 5 simple calls to different functions", async function () {
+    const bal = await contract.call("get_balance");
+    const bal2 = await contract.call("get_balance2");
+    const bal3 = await contract.call("get_balance3");
+    const bal4 = await contract.call("get_balance4");
+    const bal5 = await contract.call("get_balance5");
+  });
+  it("run 10 simple calls to different functions", async function () {
+    const bal = await contract.call("get_balance");
+    const bal2 = await contract.call("get_balance2");
+    const bal3 = await contract.call("get_balance3");
+    const bal4 = await contract.call("get_balance4");
+    const bal5 = await contract.call("get_balance5");
+    const bal6 = await contract.call("get_balance6");
+    const bal7 = await contract.call("get_balance7");
+    const bal8 = await contract.call("get_balance8");
+    const bal9 = await contract.call("get_balance9");
+    const bal10 = await contract.call("get_balance10");
+  });
+  it("run 10 simple calls to the same function", async function () {
+    const bal = await contract.call("get_balance");
+    const bal2 = await contract.call("get_balance");
+    const bal3 = await contract.call("get_balance");
+    const bal4 = await contract.call("get_balance");
+    const bal5 = await contract.call("get_balance");
+    const bal6 = await contract.call("get_balance");
+    const bal7 = await contract.call("get_balance");
+    const bal8 = await contract.call("get_balance");
+    const bal9 = await contract.call("get_balance");
+    const bal10 = await contract.call("get_balance");
+  });
+
+  it("run 10 simple invokes", async function () {
+    for (let i = 0; i < 10; i++) {
+      const bal = await contract.invoke("increase_balance", { amount1: 1n });
+    }
+  });
+
+  it("run 20 simple invokes", async function () {
+    for (let i = 0; i < 20; i++) {
+      const bal = await contract.invoke("increase_balance", { amount1: 1n });
+    }
   });
 });

@@ -62,3 +62,66 @@ func get_balance{
     let (res) = balance.read()
     return (res)
 end
+@view
+func get_balance2{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance3{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance4{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance5{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance6{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance7{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance8{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance9{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
+@view
+func get_balance10{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+        range_check_ptr}() -> (res : felt):
+    let (res) = balance.read()
+    return (res)
+end
