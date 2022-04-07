@@ -16,6 +16,22 @@ from account.library import (
 
 from account.ERC165 import ERC165_supports_interface 
 
+from account.multisig_library import (
+    multisig_is_owner,
+    multisig_get_owners_len,
+    multisig_get_owners,
+    multisig_get_transactions_len,
+    multisig_get_confirmations_required,
+    multisig_is_confirmed,
+    multisig_is_executed,
+    multisig_get_transaction,
+    multisig_initializer,
+    multisig_submit_transaction,
+    multisig_confirm_transaction,
+    multisig_revoke_confirmation,
+    multisig_execute_transaction
+)
+
 #
 # Getters
 #
