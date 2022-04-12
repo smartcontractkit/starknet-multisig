@@ -7,17 +7,27 @@ import {
   StarknetContractFactory,
   Account,
 } from "hardhat/types/runtime";
-import { number, stark } from "starknet";
+import {
+  Contract,
+  defaultProvider,
+  ec,
+  json,
+  number,
+  Provider,
+  stark,
+} from "starknet";
 import { getSelectorFromName } from "starknet/dist/utils/hash";
+import fs from "fs";
 
 describe("Multisig with single owner", function () {
-  this.timeout(300_000);
+  this.timeout(3000_000);
 
   let contractFactory: StarknetContractFactory;
   let targetContract: StarknetContract;
   let multisig: StarknetContract;
 
   let account: Account;
+  let acc: Contract;
   let nonOwner: Account;
   let accountAddress: string;
   let privateKey: string;
@@ -27,27 +37,71 @@ describe("Multisig with single owner", function () {
 
   // should be beforeeach, but that'd be horribly slow. Just remember that the tests are not idempotent
   before(async function () {
-    account = await starknet.deployAccount("OpenZeppelin");
-    nonOwner = await starknet.deployAccount("OpenZeppelin");
+    const compiledAccount = json.parse(
+      fs
+        .readFileSync(
+          "./starknet-artifacts/contracts/account/Account.cairo/Account.json"
+        )
+        .toString("ascii")
+    );
+    const starkKeyPair = ec.genKeyPair();
+    const starkKeyPub = ec.getStarkKey(starkKeyPair);
 
-    accountAddress = account.starknetContract.address;
-    privateKey = account.privateKey;
-    publicKey = account.publicKey;
+    console.log("Deployment Tx - Account Contract to StarkNet...");
 
-    let multisigFactory = await starknet.getContractFactory("Multisig");
-    multisig = await multisigFactory.deploy({
-      owners: [number.toBN(accountAddress)],
-      confirmations_required: 1,
+    const provider = new Provider({
+      baseUrl: "http://localhost:5000",
+      feederGatewayUrl: "feeder_gateway",
+      gatewayUrl: "gateway",
     });
 
-    contractFactory = await starknet.getContractFactory("Target");
-    targetContract = await contractFactory.deploy();
-
-    console.log("Deployed target contract at", targetContract.address);
+    //const prov = new Provider()
+    const accountResponse = await provider.deployContract({
+      constructorCalldata: [number.toBN(starkKeyPub)],
+      contract: compiledAccount,
+      addressSalt: starkKeyPub,
+    });
+    /*
+    
+    account = await starknet.deployAccount("OpenZeppelin");
+    nonOwner = await starknet.deployAccount("OpenZeppelin");
+*/
+    //let exaccount = await starknet.deployAccount("OpenZeppelin");
     console.log(
-      "Deployed account at address:",
-      account.starknetContract.address
+      "waiting for tx",
+      accountResponse.transaction_hash,
+      "for provider"
     );
+    await provider.waitForTransaction(accountResponse.transaction_hash);
+
+    if (accountResponse.address) {
+      acc = new Contract(compiledAccount.abi, accountResponse.address);
+      /*  account = await starknet.getAccountFromAddress(
+        accountResponse.address,
+        number.toFelt(starkKeyPair.getPrivate()),
+        "OpenZeppelin"
+      ); */
+
+      accountAddress = accountResponse.address;
+      /*       privateKey = account.privateKey;
+      publicKey = account.publicKey; */
+
+      /*       let multisigFactory = await starknet.getContractFactory("Multisig");
+      multisig = await multisigFactory.deploy({
+        owners: [number.toBN(accountAddress)],
+        confirmations_required: 1,
+      }); */
+
+      contractFactory = await starknet.getContractFactory("Target");
+      targetContract = await contractFactory.deploy();
+
+      console.log("Deployed target contract at", targetContract.address);
+      console.log("Deployed Account contract at", accountResponse.address);
+      /*       console.log(
+        "Deployed account at address:",
+        account.starknetContract.address
+      ); */
+    }
   });
 
   describe(" - submit - ", function () {
@@ -55,16 +109,84 @@ describe("Multisig with single owner", function () {
       txIndex++;
 
       const selector = number.toBN(getSelectorFromName("set_balance"));
-      console.log("sel", selector, selector.toString());
+      //console.log("selector", selector, selector.toString());
       const target = number.toBN(targetContract.address);
       const payload = {
         to: target,
         function_selector: selector,
         calldata: [5],
       };
-      await account.invoke(multisig, "submit_transaction", payload);
+      /*
+        call_array_len: felt,
+        call_array: AccountCallArray*,
+        calldata_len: felt,
+        calldata: felt*,
+        nonce: felt
 
-      const res = await account.call(multisig, "get_transaction", {
+        struct AccountCallArray:
+    member to: felt
+    member selector: felt
+    member data_offset: felt
+    member data_len: felt
+end
+
+      */
+      /*       const callArray = {
+        to: target,
+        selector: selector,
+        data_offset: 1,
+        data_len: 1,
+      };
+      const calldata = {
+        call_array_len: 1,
+        call_array: [callArray],
+        calldata_len: 1,
+        calldata: [5],
+        nonce: 1,
+      }; */
+
+      const callArray = {
+        to: target,
+        selector: selector,
+        data_offset: 1,
+        data_len: 1,
+      };
+      const calldata = {
+        call_array_len: 1,
+        call_array: [callArray],
+        calldata_len: 1,
+        calldata: [5],
+        nonce: 1,
+      };
+
+      /*
+func __execute__{
+        call_array_len: felt,
+        call_array: AccountCallArray*,
+        calldata_len: felt,
+        calldata: felt*,
+        nonce: felt
+      */
+      console.log(
+        "using target",
+        target.toString(),
+        " selector ",
+        selector.toString()
+      );
+      await acc.__execute__(
+        //"1 " + target.toString() + " " + selector.toString() + " 0 1 1 7 0"
+        1,
+        //[target, selector, 0, 1],
+        callArray,
+        1,
+        [5],
+        1
+      );
+      //await account.invoke(multisig, "submit_transaction", payload);
+
+      const aa = await targetContract.call("get_balance", []);
+      console.log("bala", aa);
+      /*    const res = await account.call(multisig, "get_transaction", {
         tx_index: txIndex,
       });
 
@@ -74,9 +196,9 @@ describe("Multisig with single owner", function () {
       expect(res.tx.executed).to.equal(0n);
       expect(res.tx.num_confirmations).to.equal(0n);
       expect(res.tx_calldata_len).to.equal(1n);
-      expect(res.tx_calldata[0]).to.equal(5n);
+      expect(res.tx_calldata[0]).to.equal(5n); */
     });
-
+    /* 
     it("transaction execute works", async function () {
       txIndex++;
 
@@ -190,9 +312,9 @@ describe("Multisig with single owner", function () {
       } catch (err: any) {
         assertErrorMsg(err.message, "not owner");
       }
-    });
+    }); */
   });
-
+  /* 
   describe("- confirmation - ", function () {
     it("non-owner can't confirm a transaction", async function () {
       txIndex++;
@@ -400,10 +522,10 @@ describe("Multisig with single owner", function () {
         assertErrorMsg(err.message, "tx already executed");
       }
     });
-  });
+  }); */
 });
 
-describe("Multisig with multiple owners", function () {
+/* describe("Multisig with multiple owners", function () {
   this.timeout(300_000);
 
   let targetFactory: StarknetContractFactory;
@@ -536,7 +658,7 @@ describe("Multisig with multiple owners", function () {
       assertErrorMsg(err.message, "need more confirmations");
     }
   });
-});
+}); */
 
 const defaultPayload = (contractAddress: string, newValue: number) => {
   const setSelector = number.toBN(getSelectorFromName("set_balance"));

@@ -164,7 +164,7 @@ func Account_execute{
     let (_current_nonce) = Account_current_nonce.read()
 
     # validate nonce
-    assert _current_nonce = nonce
+    #assert _current_nonce = nonce
 
     # TMP: Convert `AccountCallArray` to 'Call'.
     let (calls : Call*) = alloc()
@@ -172,7 +172,7 @@ func Account_execute{
     let calls_len = call_array_len
 
     # validate transaction
-    Account_is_valid_signature(tx_info.transaction_hash, tx_info.signature_len, tx_info.signature)
+    #Account_is_valid_signature(tx_info.transaction_hash, tx_info.signature_len, tx_info.signature)
 
     # bump nonce
     Account_current_nonce.write(_current_nonce + 1)
