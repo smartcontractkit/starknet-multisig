@@ -57,7 +57,7 @@ describe("Multisig with single owner", function () {
 
     //const prov = new Provider()
     const accountResponse = await provider.deployContract({
-      constructorCalldata: [number.toBN(starkKeyPub)],
+      constructorCalldata: [number.toBN(starkKeyPub), 1, 2, 1],
       contract: compiledAccount,
       addressSalt: starkKeyPub,
     });
@@ -109,7 +109,12 @@ describe("Multisig with single owner", function () {
       txIndex++;
 
       const selector = number.toBN(getSelectorFromName("set_balance"));
-      //console.log("selector", selector, selector.toString());
+      const submitSelector = number.toBN(
+        getSelectorFromName("multisig_submit_transaction")
+      );
+      console.log("selector", selector, selector.toString());
+      console.log("submit selector", submitSelector, submitSelector.toString());
+      return;
       const target = number.toBN(targetContract.address);
       const payload = {
         to: target,
