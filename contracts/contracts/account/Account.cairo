@@ -68,6 +68,9 @@ func supportsInterface{
     return (success)
 end
 
+
+# TODO: add getters from multisig
+
 #
 # Setters
 #
