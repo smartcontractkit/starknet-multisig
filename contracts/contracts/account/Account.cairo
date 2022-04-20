@@ -144,9 +144,9 @@ func __execute__{
     let (self) = get_contract_address()
 
     # External calls have to go through multisig_execute_transaction
-    with_attr error_message("Account: only internal calls are allowed"):
-        assert [call_array].to = self
-    end
+    #with_attr error_message("Account: only internal calls are allowed"):
+    #    assert [call_array].to = self
+    #end
 
     let (response_len, response) = Account_execute(
         call_array_len,
@@ -156,4 +156,30 @@ func __execute__{
         nonce
     )
     return (response_len=response_len, response=response)
+end
+
+# Custom logic
+
+
+@view
+func get_transactions_len{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }() -> (res : felt):
+    let (res) = multisig_get_transactions_len()
+    return (res)
+end
+
+@external
+func submit_transaction{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(to : felt,
+        function_selector : felt,
+        calldata_len : felt,
+        calldata : felt*):
+    multisig_submit_transaction(to, function_selector, calldata_len, calldata)
+    return ()
 end

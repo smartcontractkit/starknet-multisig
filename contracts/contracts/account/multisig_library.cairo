@@ -346,7 +346,8 @@ func multisig_submit_transaction{
         calldata : felt*,
     ):
     alloc_locals
-    require_owner()
+    # TODO: re-enable
+    #require_owner()
 
     let (tx_index) = _next_tx_index.read()
 

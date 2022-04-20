@@ -24,7 +24,7 @@ describe("Multisig with single owner", function () {
 
   let contractFactory: StarknetContractFactory;
   let targetContract: StarknetContract;
-  let multisig: StarknetContract;
+  let accountContract: StarknetContract;
 
   let account: Account;
   let acc: Contract;
@@ -74,53 +74,66 @@ describe("Multisig with single owner", function () {
     );
     await provider.waitForTransaction(accountResponse.transaction_hash);
 
-    if (accountResponse.address) {
-      acc = new Contract(compiledAccount.abi, accountResponse.address);
-      /*  account = await starknet.getAccountFromAddress(
+    //  if (accountResponse.address) {
+    //  acc = new Contract(compiledAccount.abi, accountResponse.address);
+    /*  account = await starknet.getAccountFromAddress(
         accountResponse.address,
         number.toFelt(starkKeyPair.getPrivate()),
         "OpenZeppelin"
       ); */
 
-      accountAddress = accountResponse.address;
-      /*       privateKey = account.privateKey;
+    //accountAddress = accountResponse.address;
+    /*       privateKey = account.privateKey;
       publicKey = account.publicKey; */
 
-      /*       let multisigFactory = await starknet.getContractFactory("Multisig");
+    /*       let multisigFactory = await starknet.getContractFactory("Multisig");
       multisig = await multisigFactory.deploy({
         owners: [number.toBN(accountAddress)],
         confirmations_required: 1,
       }); */
 
-      contractFactory = await starknet.getContractFactory("Target");
-      targetContract = await contractFactory.deploy();
+    const accountContractFactory = await starknet.getContractFactory(
+      "contracts/account/Account"
+    );
+    accountContract = await accountContractFactory.deploy({
+      public_key: number.toBN(starkKeyPub),
+      owners: [1],
+      confirmations_required: 1,
+    });
 
-      console.log("Deployed target contract at", targetContract.address);
-      console.log("Deployed Account contract at", accountResponse.address);
-      /*       console.log(
+    /*
+constructorCalldata: [number.toBN(starkKeyPub), 1, 2, 1],
+      contract: compiledAccount,
+      addressSalt: starkKeyPub,
+      */
+    const targetContractFactory = await starknet.getContractFactory(
+      "contracts/multisig/mock/Target"
+    );
+    targetContract = await targetContractFactory.deploy();
+
+    console.log("Deployed target contract at", targetContract.address);
+    console.log("Deployed Account contract at", accountContract.address);
+    /*       console.log(
         "Deployed account at address:",
         account.starknetContract.address
       ); */
-    }
+    //}
   });
 
   describe(" - submit - ", function () {
     it("transaction submit works", async function () {
       txIndex++;
 
-      const selector = number.toBN(getSelectorFromName("set_balance"));
+      const targetSelector = number.toBN(getSelectorFromName("set_balance"));
       const submitSelector = number.toBN(
-        getSelectorFromName("multisig_submit_transaction")
+        getSelectorFromName("submit_transaction")
       );
-      console.log("selector", selector, selector.toString());
+      console.log("target selector", targetSelector, targetSelector.toString());
       console.log("submit selector", submitSelector, submitSelector.toString());
-      return;
-      const target = number.toBN(targetContract.address);
-      const payload = {
-        to: target,
-        function_selector: selector,
-        calldata: [5],
-      };
+      //return;
+      const targetContractNumber = number.toBN(targetContract.address);
+      const accountContractNumber = number.toBN(accountContract.address);
+
       /*
         call_array_len: felt,
         call_array: AccountCallArray*,
@@ -150,47 +163,50 @@ end
         nonce: 1,
       }; */
 
-      const callArray = {
-        to: target,
-        selector: selector,
-        data_offset: 1,
-        data_len: 1,
-      };
-      const calldata = {
-        call_array_len: 1,
-        call_array: [callArray],
-        calldata_len: 1,
-        calldata: [5],
-        nonce: 1,
-      };
-
-      /*
-func __execute__{
-        call_array_len: felt,
-        call_array: AccountCallArray*,
-        calldata_len: felt,
-        calldata: felt*,
-        nonce: felt
-      */
-      console.log(
+      /*       console.log(
         "using target",
         target.toString(),
         " selector ",
         selector.toString()
+      ); */
+
+      /*   This is for trying to pretend that we use OZ, but this doesn't work
+    const account = await starknet.getAccountFromAddress(
+        accountContract.address,
+        privateKey,
+        "OpenZeppelin"
       );
-      await acc.__execute__(
-        //"1 " + target.toString() + " " + selector.toString() + " 0 1 1 7 0"
-        1,
-        //[target, selector, 0, 1],
-        callArray,
-        1,
-        [5],
-        1
-      );
+      console.log("got account");
+      await account.invoke(targetContract, "set_balance", { _balance: 76 });
+ */
+      const calldata = [targetContractNumber, targetSelector, 1, 8];
+      const callArray = {
+        to: accountContractNumber,
+        selector: submitSelector,
+        data_offset: 0,
+        data_len: calldata.length,
+      };
+      const payload1 = {
+        to: targetContractNumber,
+        function_selector: targetSelector,
+        calldata: [],
+      };
+
+      await accountContract.invoke("__execute__", {
+        call_array: [callArray],
+        calldata: calldata,
+        //calldata: [5, 6],
+        nonce: 0,
+      });
+      /*       console.log("invoked");
+      const res = await targetContract.call("get_balance", {});
+      console.log("resss", res, res.toString());
+      console.log("res2", res.res, res.res.toString()); */
+
       //await account.invoke(multisig, "submit_transaction", payload);
 
-      const aa = await targetContract.call("get_balance", []);
-      console.log("bala", aa);
+      //const aa = await targetContract.call("get_balance", []);
+      //console.log("bala", aa);
       /*    const res = await account.call(multisig, "get_transaction", {
         tx_index: txIndex,
       });

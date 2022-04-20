@@ -2,9 +2,9 @@
 
 ## Current status:
 
-contracts/account/Account.cairo might already be a working account contract multisig. It has signatures and nonce checks commented out, but otherwise at least transaction submission works.
+contracts/account/Account.cairo might already be a working account contract multisig. It has signature checks commented out, but otherwise at least transaction submission works.
 
-Testing it further hasn't been done because some underlying libraries have bugs (https://github.com/0xs34n/starknet.js/issues/164).
+Unfortunately there's no way to use custom account contracts (either in Hardhat or barebones starknet CLI) because signed messages are supported only for precompiled account contracts (OZ + Argent).
 
 It's also missing view functions (the functions are there but they haven't been exposed).
 

@@ -164,7 +164,7 @@ func Account_execute{
     let (_current_nonce) = Account_current_nonce.read()
 
     # validate nonce TODO: re-enable
-    #assert _current_nonce = nonce
+    assert _current_nonce = nonce
 
     # TMP: Convert `AccountCallArray` to 'Call'.
     let (calls : Call*) = alloc()
@@ -182,6 +182,7 @@ func Account_execute{
     let (response_len) = execute_list(calls_len, calls, response)
 
     return (response_len=response_len, response=response)
+    #return (response_len=0, response=response)
 end
 
 func execute_list{syscall_ptr: felt*}(
@@ -202,6 +203,7 @@ func execute_list{syscall_ptr: felt*}(
         contract_address=this_call.to,
         function_selector=this_call.selector,
         calldata_size=this_call.calldata_len,
+        #calldata_size=1,
         calldata=this_call.calldata
     )
     # copy the result in response
@@ -209,6 +211,7 @@ func execute_list{syscall_ptr: felt*}(
     # do the next calls recursively
     let (response_len) = execute_list(calls_len - 1, calls + Call.SIZE, response + res.retdata_size)
     return (response_len + res.retdata_size)
+    #return (0)
 end
 
 func from_call_array_to_call{syscall_ptr: felt*}(
