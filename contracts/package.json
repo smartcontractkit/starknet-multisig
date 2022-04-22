@@ -23,7 +23,7 @@
     "typescript": "^4.5.2"
   },
   "dependencies": {
-    "@toruslabs/starkware-crypto": "^1.0.0",
+    "@toruslabs/starkware-crypto": "^1.1.0",
     "hardhat": "2.9.0",
     "starknet": "^3.9.0"
   }

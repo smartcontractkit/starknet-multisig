@@ -2,11 +2,13 @@
 
 ## Current status:
 
-contracts/account/Account.cairo might already be a working account contract multisig. It has signature checks commented out, but otherwise at least transaction submission works.
-
-Unfortunately there's no way to use custom account contracts (either in Hardhat or barebones starknet CLI) because signed messages are supported only for precompiled account contracts (OZ + Argent).
+Unfortunately there's no way to use custom account contracts (either in Hardhat or barebones starknet CLI) because signed messages are supported only for precompiled account contracts (OZ + Argent). So we currently try to use it directly by calling `__execute__` manually.
 
 It's also missing view functions (the functions are there but they haven't been exposed).
+
+Signer signature verifications are currently disabled (for the `submit_transaction` endpoint at least) because signature verification (and its structure) isn't working currently - probably user error. Furthermore, the `Account` constructor probably shouldn't take in a public key, since the contract shouldn't act as a regular account contract - only as a multisig one. Quite some work to do still.
+
+The unit tests are a mess, mostly disabled, due to testing various signature-related things.
 
 ## Helpful commands for testing stuff from command line
 

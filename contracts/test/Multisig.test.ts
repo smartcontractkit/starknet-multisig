@@ -15,9 +15,13 @@ import {
   number,
   Provider,
   stark,
+  hash,
 } from "starknet";
+import { transformCallsToMulticallArrays } from "starknet/dist/utils/transaction";
 import { getSelectorFromName } from "starknet/dist/utils/hash";
 import fs from "fs";
+import { InvokeOptions } from "@shardlabs/starknet-hardhat-plugin/dist/types";
+import * as starkwareCrypto from "@toruslabs/starkware-crypto";
 
 describe("Multisig with single owner", function () {
   this.timeout(3000_000);
@@ -30,10 +34,24 @@ describe("Multisig with single owner", function () {
   let acc: Contract;
   let nonOwner: Account;
   let accountAddress: string;
-  let privateKey: string;
-  let publicKey: string;
+  /*   let privateKey: string;
+  let publicKey: string; */
 
   let txIndex = -1; // faster to track this internally than to request from contract
+
+  // be sure to pass big numbers as strings to avoid precision errors
+  /*  const privateKey =
+    "1628448741648245036800002906075225705100596136133912895015035902954123957123";
+  const keyPair = starkwareCrypto.ec.keyFromPrivate(privateKey);
+  const publicKey = starkwareCrypto.ec
+    .keyFromPublic(keyPair.getPublic(true, "hex"), "hex")
+    .getPublic()
+    .getX()
+    .toString(16);
+  const publicKeyFelt = BigInt("0x" + publicKey); */
+
+  const starkKeyPair = ec.genKeyPair();
+  const starkKeyPub = ec.getStarkKey(starkKeyPair);
 
   // should be beforeeach, but that'd be horribly slow. Just remember that the tests are not idempotent
   before(async function () {
@@ -44,36 +62,54 @@ describe("Multisig with single owner", function () {
         )
         .toString("ascii")
     );
-    const starkKeyPair = ec.genKeyPair();
-    const starkKeyPub = ec.getStarkKey(starkKeyPair);
 
     console.log("Deployment Tx - Account Contract to StarkNet...");
 
-    const provider = new Provider({
+    /* const provider = new Provider({
       baseUrl: "http://localhost:5000",
+      feederGatewayUrl: "feeder_gateway",
+      gatewayUrl: "gateway",
+    }); */
+    const provider = new Provider({
+      baseUrl: "http://alpha4.starknet.io",
       feederGatewayUrl: "feeder_gateway",
       gatewayUrl: "gateway",
     });
 
     //const prov = new Provider()
+    console.log("start deploy");
     const accountResponse = await provider.deployContract({
-      constructorCalldata: [number.toBN(starkKeyPub), 1, 2, 1],
+      //constructorCalldata: [number.toBN(publicKey), 1, 2, 1],
+      constructorCalldata: [
+        //number.toBN(publicKey),
+        starkKeyPub,
+        1,
+        //number.toBN(publicKey),
+        starkKeyPub,
+        1,
+      ],
       contract: compiledAccount,
       addressSalt: starkKeyPub,
     });
+    console.log("wait deploy");
     /*
     
     account = await starknet.deployAccount("OpenZeppelin");
     nonOwner = await starknet.deployAccount("OpenZeppelin");
 */
     //let exaccount = await starknet.deployAccount("OpenZeppelin");
-    console.log(
+    /*     console.log(
       "waiting for tx",
       accountResponse.transaction_hash,
       "for provider"
-    );
+    );*/
     await provider.waitForTransaction(accountResponse.transaction_hash);
-
+    acc = new Contract(
+      compiledAccount.abi,
+      accountResponse.address ?? "",
+      provider
+    );
+    console.log("got acc");
     //  if (accountResponse.address) {
     //  acc = new Contract(compiledAccount.abi, accountResponse.address);
     /*  account = await starknet.getAccountFromAddress(
@@ -92,14 +128,14 @@ describe("Multisig with single owner", function () {
         confirmations_required: 1,
       }); */
 
-    const accountContractFactory = await starknet.getContractFactory(
+    /*     const accountContractFactory = await starknet.getContractFactory(
       "contracts/account/Account"
     );
     accountContract = await accountContractFactory.deploy({
-      public_key: number.toBN(starkKeyPub),
-      owners: [1],
+      public_key: publicKeyFelt,
+      owners: [publicKeyFelt],
       confirmations_required: 1,
-    });
+    }); */
 
     /*
 constructorCalldata: [number.toBN(starkKeyPub), 1, 2, 1],
@@ -112,7 +148,12 @@ constructorCalldata: [number.toBN(starkKeyPub), 1, 2, 1],
     targetContract = await targetContractFactory.deploy();
 
     console.log("Deployed target contract at", targetContract.address);
-    console.log("Deployed Account contract at", accountContract.address);
+    console.log(
+      "Deployed acc contract at ",
+      acc.address,
+      accountResponse.address
+    );
+    //console.log("Deployed Account contract at", accountContract.address);
     /*       console.log(
         "Deployed account at address:",
         account.starknetContract.address
@@ -130,45 +171,9 @@ constructorCalldata: [number.toBN(starkKeyPub), 1, 2, 1],
       );
       console.log("target selector", targetSelector, targetSelector.toString());
       console.log("submit selector", submitSelector, submitSelector.toString());
-      //return;
+
       const targetContractNumber = number.toBN(targetContract.address);
-      const accountContractNumber = number.toBN(accountContract.address);
-
-      /*
-        call_array_len: felt,
-        call_array: AccountCallArray*,
-        calldata_len: felt,
-        calldata: felt*,
-        nonce: felt
-
-        struct AccountCallArray:
-    member to: felt
-    member selector: felt
-    member data_offset: felt
-    member data_len: felt
-end
-
-      */
-      /*       const callArray = {
-        to: target,
-        selector: selector,
-        data_offset: 1,
-        data_len: 1,
-      };
-      const calldata = {
-        call_array_len: 1,
-        call_array: [callArray],
-        calldata_len: 1,
-        calldata: [5],
-        nonce: 1,
-      }; */
-
-      /*       console.log(
-        "using target",
-        target.toString(),
-        " selector ",
-        selector.toString()
-      ); */
+      //const accountContractNumber = number.toBN(accountContract.address);
 
       /*   This is for trying to pretend that we use OZ, but this doesn't work
     const account = await starknet.getAccountFromAddress(
@@ -179,25 +184,73 @@ end
       console.log("got account");
       await account.invoke(targetContract, "set_balance", { _balance: 76 });
  */
-      const calldata = [targetContractNumber, targetSelector, 1, 8];
+      /*       const calldata = [targetContractNumber, targetSelector, 1, 8];
       const callArray = {
         to: accountContractNumber,
         selector: submitSelector,
         data_offset: 0,
         data_len: calldata.length,
       };
-      const payload1 = {
-        to: targetContractNumber,
-        function_selector: targetSelector,
-        calldata: [],
-      };
 
-      await accountContract.invoke("__execute__", {
+      const fullParams = {
         call_array: [callArray],
         calldata: calldata,
-        //calldata: [5, 6],
         nonce: 0,
-      });
+      }; */
+
+      const calls = [
+        {
+          contractAddress: acc.address,
+          entrypoint: "submit_transaction",
+          calldata: [
+            targetContractNumber.toString(),
+            targetSelector.toString(),
+            "1",
+            "8",
+          ],
+        },
+      ];
+      console.log("starting hash");
+      const msgHash = hash.hashMulticall(acc.address, calls, "0", "0");
+      console.log("starting transform");
+      const { callArray, calldata } = transformCallsToMulticallArrays(calls);
+      console.log("got hash", msgHash);
+      const signature = ec.sign(starkKeyPair, msgHash);
+      console.log("signature", signature);
+      /*        const messageHash = starkwareCrypto.pedersen([
+        accountContractNumber.toString(),
+        submitSelector.toString(),
+        "0",
+        calldata.length.toString(),
+        targetContractNumber.toString(),
+        targetSelector.toString(),
+        "1",
+        "8",
+        "0",
+        "0", // blind
+      ]);  */
+      //const signedMessage = starkwareCrypto.sign(keyPair, messageHash);
+      /*       const signature = [
+         BigInt("0x" + signedMessage.r.toString(16)),
+        BigInt("0x" + signedMessage.s.toString(16)), 
+      ];
+      const stringed = signedMessage.map(s => number.toBN(s));
+      console.log("using sign", signedMessage, stringed); */
+
+      /*       const opts: InvokeOptions = {
+        signature: stringed,
+      };
+
+      await accountContract.invoke("__execute__", fullParams, opts); */
+      console.log("starting exec", callArray, calldata, signature);
+      const { transaction_hash: transferTxHash } = await acc.__execute__(
+        callArray,
+        calldata,
+        "0"
+        //signature
+      );
+      await defaultProvider.waitForTransaction(transferTxHash);
+
       /*       console.log("invoked");
       const res = await targetContract.call("get_balance", {});
       console.log("resss", res, res.toString());

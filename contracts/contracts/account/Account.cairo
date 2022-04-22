@@ -68,9 +68,6 @@ func supportsInterface{
     return (success)
 end
 
-
-# TODO: add getters from multisig
-
 #
 # Setters
 #
@@ -144,9 +141,9 @@ func __execute__{
     let (self) = get_contract_address()
 
     # External calls have to go through multisig_execute_transaction
-    #with_attr error_message("Account: only internal calls are allowed"):
-    #    assert [call_array].to = self
-    #end
+    with_attr error_message("Account: only internal calls are allowed"):
+        assert [call_array].to = self
+    end
 
     let (response_len, response) = Account_execute(
         call_array_len,
@@ -176,10 +173,13 @@ func submit_transaction{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(to : felt,
+    }(
+        to : felt,
         function_selector : felt,
         calldata_len : felt,
         calldata : felt*):
     multisig_submit_transaction(to, function_selector, calldata_len, calldata)
     return ()
 end
+
+# TODO: add more logic from multisig
