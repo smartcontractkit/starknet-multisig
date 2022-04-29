@@ -107,8 +107,8 @@ func Account_initializer{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(_public_key: felt):
-    Account_public_key.write(_public_key)
+    }():
+    #Account_public_key.write(_public_key)
     ERC165_register_interface(IACCOUNT_ID)
     return()
 end
@@ -163,7 +163,7 @@ func Account_execute{
     let (tx_info) = get_tx_info()
     let (_current_nonce) = Account_current_nonce.read()
 
-    # validate nonce TODO: re-enable
+    # validate nonce
     assert _current_nonce = nonce
 
     # TMP: Convert `AccountCallArray` to 'Call'.

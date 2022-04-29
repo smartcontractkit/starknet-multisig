@@ -92,11 +92,10 @@ func constructor{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(
-        public_key: felt,
         owners_len : felt,
         owners : felt*,
         confirmations_required : felt):
-    Account_initializer(public_key)
+    Account_initializer()
     multisig_initializer(owners_len, owners, confirmations_required)
     return ()
 end
