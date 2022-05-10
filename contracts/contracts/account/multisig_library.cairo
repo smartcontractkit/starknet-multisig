@@ -57,7 +57,7 @@ func _owners(index : felt) -> (res : felt):
 end
 
 @storage_var
-func _is_owner(address : felt) -> (res : felt):
+func _is_owner(public_key : felt) -> (res : felt):
 end
 
 @storage_var
@@ -86,9 +86,8 @@ func require_owner{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }():
-    let (caller) = get_caller_address()
-    let (is_caller_owner) = multisig_is_owner(address=caller)
+    }(public_key : felt):
+    let (is_caller_owner) = multisig_is_owner(public_key=public_key)
     with_attr error_message("not owner"):
         assert is_caller_owner = TRUE
     end
@@ -181,9 +180,9 @@ func multisig_is_owner{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(address : felt) -> (res : felt):
+    }(public_key : felt) -> (res : felt):
 
-    let (res) = _is_owner.read(address=address)
+    let (res) = _is_owner.read(public_key=public_key)
 
     return (res)
 end
@@ -370,10 +369,11 @@ func multisig_submit_transaction{
         function_selector : felt,
         calldata_len : felt,
         calldata : felt*,
+        public_key : felt
     ):
     alloc_locals
-    # TODO: re-enable
-    #require_owner()
+
+    require_owner(public_key)
 
     let (tx_index) = _next_tx_index.read()
 
@@ -391,101 +391,101 @@ func multisig_submit_transaction{
     )
 
     # Emit event & update tx count
-    let (caller) = get_caller_address()
-    SubmitTransaction.emit(owner=caller, tx_index=tx_index, to=to)
+    SubmitTransaction.emit(owner=public_key, tx_index=tx_index, to=to)
+
     _next_tx_index.write(value=tx_index + 1)
 
     return ()
 end
 
-func multisig_confirm_transaction{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(tx_index : felt):
-    require_owner()
-    require_tx_exists(tx_index=tx_index)
-    require_not_executed(tx_index=tx_index)
-    require_not_confirmed(tx_index=tx_index)
+# func multisig_confirm_transaction{
+#         syscall_ptr : felt*,
+#         pedersen_ptr : HashBuiltin*,
+#         range_check_ptr
+#     }(tx_index : felt):
+#     require_owner()
+#     require_tx_exists(tx_index=tx_index)
+#     require_not_executed(tx_index=tx_index)
+#     require_not_confirmed(tx_index=tx_index)
 
-    let (num_confirmations) = _transactions.read(
-        tx_index=tx_index, field=Transaction.num_confirmations
-    )
-    _transactions.write(
-        tx_index=tx_index,
-        field=Transaction.num_confirmations,
-        value=num_confirmations + 1,
-    )
-    let (caller) = get_caller_address()
-    _is_confirmed.write(tx_index=tx_index, owner=caller, value=TRUE)
+#     let (num_confirmations) = _transactions.read(
+#         tx_index=tx_index, field=Transaction.num_confirmations
+#     )
+#     _transactions.write(
+#         tx_index=tx_index,
+#         field=Transaction.num_confirmations,
+#         value=num_confirmations + 1,
+#     )
+#     let (caller) = get_caller_address()
+#     _is_confirmed.write(tx_index=tx_index, owner=caller, value=TRUE)
 
-    ConfirmTransaction.emit(owner=caller, tx_index=tx_index)
-    return ()
-end
+#     ConfirmTransaction.emit(owner=caller, tx_index=tx_index)
+#     return ()
+# end
 
-func multisig_revoke_confirmation{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(tx_index : felt):
-    require_owner()
-    require_tx_exists(tx_index=tx_index)
-    require_not_executed(tx_index=tx_index)
-    require_confirmed(tx_index=tx_index)
+# func multisig_revoke_confirmation{
+#         syscall_ptr : felt*,
+#         pedersen_ptr : HashBuiltin*,
+#         range_check_ptr
+#     }(tx_index : felt):
+#     require_owner()
+#     require_tx_exists(tx_index=tx_index)
+#     require_not_executed(tx_index=tx_index)
+#     require_confirmed(tx_index=tx_index)
 
-    let (num_confirmations) = _transactions.read(
-        tx_index=tx_index, field=Transaction.num_confirmations
-    )
-    _transactions.write(
-        tx_index=tx_index,
-        field=Transaction.num_confirmations,
-        value=num_confirmations - 1,
-    )
-    let (caller) = get_caller_address()
-    _is_confirmed.write(tx_index=tx_index, owner=caller, value=FALSE)
+#     let (num_confirmations) = _transactions.read(
+#         tx_index=tx_index, field=Transaction.num_confirmations
+#     )
+#     _transactions.write(
+#         tx_index=tx_index,
+#         field=Transaction.num_confirmations,
+#         value=num_confirmations - 1,
+#     )
+#     let (caller) = get_caller_address()
+#     _is_confirmed.write(tx_index=tx_index, owner=caller, value=FALSE)
 
-    RevokeConfirmation.emit(owner=caller, tx_index=tx_index)
-    return ()
-end
+#     RevokeConfirmation.emit(owner=caller, tx_index=tx_index)
+#     return ()
+# end
 
-func multisig_execute_transaction{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(tx_index : felt) -> (
-        response_len: felt,
-        response: felt*,
-    ):
-    require_owner()
-    require_tx_exists(tx_index=tx_index)
-    require_not_executed(tx_index=tx_index)
+# func multisig_execute_transaction{
+#         syscall_ptr : felt*,
+#         pedersen_ptr : HashBuiltin*,
+#         range_check_ptr
+#     }(tx_index : felt) -> (
+#         response_len: felt,
+#         response: felt*,
+#     ):
+#     require_owner()
+#     require_tx_exists(tx_index=tx_index)
+#     require_not_executed(tx_index=tx_index)
 
-    let (tx, tx_calldata_len, tx_calldata) = multisig_get_transaction(tx_index=tx_index)
+#     let (tx, tx_calldata_len, tx_calldata) = multisig_get_transaction(tx_index=tx_index)
 
-    # Require minimum configured confirmations
-    let (required_confirmations) = _confirmations_required.read()
-    with_attr error_message("need more confirmations"):
-        assert_le(required_confirmations, tx.num_confirmations)
-    end
+#     # Require minimum configured confirmations
+#     let (required_confirmations) = _confirmations_required.read()
+#     with_attr error_message("need more confirmations"):
+#         assert_le(required_confirmations, tx.num_confirmations)
+#     end
 
-    # Mark as executed
-    _transactions.write(
-        tx_index=tx_index,
-        field=Transaction.executed,
-        value=TRUE,
-    )
-    let (caller) = get_caller_address()
-    ExecuteTransaction.emit(owner=caller, tx_index=tx_index)
+#     # Mark as executed
+#     _transactions.write(
+#         tx_index=tx_index,
+#         field=Transaction.executed,
+#         value=TRUE,
+#     )
+#     let (caller) = get_caller_address()
+#     ExecuteTransaction.emit(owner=caller, tx_index=tx_index)
 
-    # Actually execute it
-    let response = call_contract(
-        contract_address=tx.to,
-        function_selector=tx.function_selector,
-        calldata_size=tx_calldata_len,
-        calldata=tx_calldata,
-    )
-    return (response_len=response.retdata_size, response=response.retdata)
-end
+#     # Actually execute it
+#     let response = call_contract(
+#         contract_address=tx.to,
+#         function_selector=tx.function_selector,
+#         calldata_size=tx_calldata_len,
+#         calldata=tx_calldata,
+#     )
+#     return (response_len=response.retdata_size, response=response.retdata)
+# end
 
 #
 # Storage Helpers
@@ -506,7 +506,7 @@ func _set_owners{
 
      # Write the current iteration to storage
     _owners.write(index=owners_index, value=[owners])
-    _is_owner.write(address=[owners], value=TRUE)
+    _is_owner.write(public_key=[owners], value=TRUE)
 
     # Recursively write the rest
     _set_owners(owners_index=owners_index + 1, owners_len=owners_len, owners=owners + 1)

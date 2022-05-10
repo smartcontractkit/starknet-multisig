@@ -29,9 +29,9 @@ from account.multisig_library import (
     multisig_get_transaction,
     multisig_initializer,
     multisig_submit_transaction,
-    multisig_confirm_transaction,
-    multisig_revoke_confirmation,
-    multisig_execute_transaction
+    #multisig_confirm_transaction,
+   # multisig_revoke_confirmation,
+    #multisig_execute_transaction
 )
 
 #
@@ -176,8 +176,9 @@ func submit_transaction{
         to : felt,
         function_selector : felt,
         calldata_len : felt,
-        calldata : felt*):
-    multisig_submit_transaction(to, function_selector, calldata_len, calldata)
+        calldata : felt*,
+        public_key : felt):
+    multisig_submit_transaction(to, function_selector, calldata_len, calldata, public_key)
     return ()
 end
 

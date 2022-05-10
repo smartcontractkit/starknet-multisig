@@ -5,4 +5,4 @@ const getSel = (str: string) => {
   const bn = number.toBN(getSelectorFromName(str));
   return bn.toString();
 };
-console.log("selector", getSel("multisig_execute_transaction"));
+console.log("selector", getSel("submit_transaction"));
