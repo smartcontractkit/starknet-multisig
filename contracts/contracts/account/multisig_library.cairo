@@ -4,10 +4,11 @@
 %lang starknet
 
 from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.math import assert_le, assert_lt
 from starkware.starknet.common.syscalls import call_contract, get_caller_address
 from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.signature import verify_ecdsa_signature
 
 from account.constants import FALSE, TRUE
 
@@ -85,12 +86,26 @@ end
 func require_owner{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(public_key : felt):
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(public_key : felt,        
+        calldata_len : felt,
+        calldata : felt*,
+        sig : (felt, felt)):
     let (is_caller_owner) = multisig_is_owner(public_key=public_key)
     with_attr error_message("not owner"):
         assert is_caller_owner = TRUE
     end
+
+    let hashval : felt = _get_calldata_hash(calldata_len - 1, calldata_len, calldata)
+
+    verify_ecdsa_signature(
+        message=hashval,
+        public_key=public_key,
+        signature_r=sig[0],
+        signature_s=sig[1],
+    )
+
     return ()
 end
 
@@ -363,17 +378,20 @@ end
 func multisig_submit_transaction{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
-        range_check_ptr
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
     }(
         to : felt,
         function_selector : felt,
         calldata_len : felt,
         calldata : felt*,
-        public_key : felt
+        public_key : felt,
+        sig : (felt, felt)
     ):
     alloc_locals
 
-    require_owner(public_key)
+    # TODO: Should include more info, such as nonce, target, chainid, ...
+    require_owner(public_key, calldata_len, calldata, sig)
 
     let (tx_index) = _next_tx_index.read()
 

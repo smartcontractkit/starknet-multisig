@@ -171,14 +171,16 @@ end
 func submit_transaction{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
-        range_check_ptr
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
     }(
         to : felt,
         function_selector : felt,
         calldata_len : felt,
         calldata : felt*,
-        public_key : felt):
-    multisig_submit_transaction(to, function_selector, calldata_len, calldata, public_key)
+        public_key : felt,
+        sig : (felt, felt)):
+    multisig_submit_transaction(to, function_selector, calldata_len, calldata, public_key, sig)
     return ()
 end
 
