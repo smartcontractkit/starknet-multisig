@@ -50,6 +50,8 @@ describe("Multisig with single owner", function () {
     .toString(16);
   const publicKeyFelt = BigInt("0x" + publicKey); */
 
+  const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
   const starkKeyPair = ec.genKeyPair();
   const starkKeyPub = ec.getStarkKey(starkKeyPair);
 
@@ -65,7 +67,7 @@ describe("Multisig with single owner", function () {
 
     console.log("Deployment Tx - Account Contract to StarkNet...");
 
-    /* const provider = new Provider({
+    /*   const provider = new Provider({
       baseUrl: "http://localhost:5000",
       feederGatewayUrl: "feeder_gateway",
       gatewayUrl: "gateway",
@@ -82,7 +84,7 @@ describe("Multisig with single owner", function () {
       //constructorCalldata: [number.toBN(publicKey), 1, 2, 1],
       constructorCalldata: [
         //number.toBN(publicKey),
-        starkKeyPub,
+        //starkKeyPub,
         1,
         //number.toBN(publicKey),
         starkKeyPub,
@@ -243,6 +245,7 @@ constructorCalldata: [number.toBN(starkKeyPub), 1, 2, 1],
 
       await accountContract.invoke("__execute__", fullParams, opts); */
       console.log("starting exec", callArray, calldata, signature);
+      // await delay(20000);
       const { transaction_hash: transferTxHash } = await acc.__execute__(
         callArray,
         calldata,

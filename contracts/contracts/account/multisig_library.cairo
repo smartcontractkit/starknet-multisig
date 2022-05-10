@@ -7,6 +7,7 @@ from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.math import assert_le, assert_lt
 from starkware.starknet.common.syscalls import call_contract, get_caller_address
+from starkware.cairo.common.hash import hash2
 
 from account.constants import FALSE, TRUE
 
@@ -75,7 +76,7 @@ end
 @storage_var
 func _is_confirmed(tx_index : felt, owner : felt) -> (res : felt):
 end
-
+ 
 #
 # Conditions
 #
@@ -153,12 +154,37 @@ end
 # Getters
 #
 
+# TODO
+func _get_calldata_hash{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(
+        calldata_index : felt,
+        calldata_len : felt,
+        calldata : felt*
+    ) -> (res : felt):
+    alloc_locals
+
+    if calldata_index == 0:
+        let (hashval2) = hash2{hash_ptr=pedersen_ptr}(0, calldata[calldata_index])
+        return (hashval2)
+    end
+
+    let currHash : felt = _get_calldata_hash(calldata_index - 1, calldata_len, calldata)
+    let (hashval) = hash2{hash_ptr=pedersen_ptr}(currHash, calldata[calldata_index])
+
+    return (hashval)
+end
+
 func multisig_is_owner{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(address : felt) -> (res : felt):
+
     let (res) = _is_owner.read(address=address)
+
     return (res)
 end
 
