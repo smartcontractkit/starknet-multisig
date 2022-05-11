@@ -6,7 +6,7 @@
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.math import assert_le, assert_lt
-from starkware.starknet.common.syscalls import call_contract, get_caller_address
+from starkware.starknet.common.syscalls import call_contract
 from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.signature import verify_ecdsa_signature
 
@@ -176,9 +176,8 @@ func require_not_confirmed{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(tx_index : felt):
-    let (caller) = get_caller_address()
-    let (is_confirmed_for_caller) = multisig_is_confirmed(tx_index=tx_index, owner=caller)
+    }(tx_index : felt, public_key: felt):
+    let (is_confirmed_for_caller) = multisig_is_confirmed(tx_index=tx_index, owner=public_key)
     with_attr error_message("tx already confirmed"):
         assert is_confirmed_for_caller = FALSE
     end
@@ -190,9 +189,8 @@ func require_confirmed{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(tx_index : felt):
-    let (caller) = get_caller_address()
-    let (is_confirmed_for_caller) = multisig_is_confirmed(tx_index=tx_index, owner=caller)
+    }(tx_index : felt, public_key : felt):
+    let (is_confirmed_for_caller) = multisig_is_confirmed(tx_index=tx_index, owner=public_key)
     with_attr error_message("tx not confirmed"):
         assert is_confirmed_for_caller = TRUE
     end
@@ -468,7 +466,7 @@ func multisig_confirm_transaction{
     verify_confirm_signature(public_key, tx_index, sig)
     require_tx_exists(tx_index=tx_index)
     require_not_executed(tx_index=tx_index)
-    require_not_confirmed(tx_index=tx_index)
+    require_not_confirmed(tx_index=tx_index, public_key=public_key)
 
     # Needed for some variable revocations
     local pedersen_ptr : HashBuiltin* = pedersen_ptr
@@ -488,30 +486,35 @@ func multisig_confirm_transaction{
     return ()
 end
 
-# func multisig_revoke_confirmation{
-#         syscall_ptr : felt*,
-#         pedersen_ptr : HashBuiltin*,
-#         range_check_ptr
-#     }(tx_index : felt):
-#     require_owner()
-#     require_tx_exists(tx_index=tx_index)
-#     require_not_executed(tx_index=tx_index)
-#     require_confirmed(tx_index=tx_index)
+func multisig_revoke_confirmation{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(tx_index : felt,
+        public_key : felt,
+        sig : (felt, felt)):
+    alloc_locals
+    require_owner(public_key)
+    # TODO: Should include more info, such as nonce, target, chainid, ...
+    verify_confirm_signature(public_key, tx_index, sig)
+    require_tx_exists(tx_index=tx_index)
+    require_not_executed(tx_index=tx_index)
+    require_confirmed(tx_index=tx_index, public_key=public_key)
 
-#     let (num_confirmations) = _transactions.read(
-#         tx_index=tx_index, field=Transaction.num_confirmations
-#     )
-#     _transactions.write(
-#         tx_index=tx_index,
-#         field=Transaction.num_confirmations,
-#         value=num_confirmations - 1,
-#     )
-#     let (caller) = get_caller_address()
-#     _is_confirmed.write(tx_index=tx_index, owner=caller, value=FALSE)
+    let (num_confirmations) = _transactions.read(
+        tx_index=tx_index, field=Transaction.num_confirmations
+    )
+    _transactions.write(
+        tx_index=tx_index,
+        field=Transaction.num_confirmations,
+        value=num_confirmations - 1,
+    )
+    _is_confirmed.write(tx_index=tx_index, owner=public_key, value=FALSE)
 
-#     RevokeConfirmation.emit(owner=caller, tx_index=tx_index)
-#     return ()
-# end
+    RevokeConfirmation.emit(owner=public_key, tx_index=tx_index)
+    return ()
+end
 
 func multisig_execute_transaction{
         syscall_ptr : felt*,
@@ -548,8 +551,8 @@ func multisig_execute_transaction{
         field=Transaction.executed,
         value=TRUE,
     )
-    let (caller) = get_caller_address()
-    ExecuteTransaction.emit(owner=caller, tx_index=tx_index)
+
+    ExecuteTransaction.emit(owner=public_key, tx_index=tx_index)
 
     # Actually execute it
     let response = call_contract(

@@ -30,7 +30,7 @@ from account.multisig_library import (
     multisig_initializer,
     multisig_submit_transaction,
     multisig_confirm_transaction,
-   # multisig_revoke_confirmation,
+    multisig_revoke_confirmation,
     multisig_execute_transaction
 )
 
@@ -155,7 +155,7 @@ func __execute__{
 end
 
 # Custom logic
-
+# TODO: Add more views
 
 @view
 func get_transactions_len{
@@ -195,6 +195,20 @@ func confirm_transaction{
         public_key : felt,
         sig : (felt, felt)):
     multisig_confirm_transaction(tx_index, public_key, sig)
+    return ()
+end
+
+@external
+func revoke_confirmation{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(
+        tx_index : felt,
+        public_key : felt,
+        sig : (felt, felt)):
+    multisig_revoke_confirmation(tx_index, public_key, sig)
     return ()
 end
 
