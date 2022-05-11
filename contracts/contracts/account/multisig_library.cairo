@@ -88,16 +88,52 @@ func require_owner{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr,
         ecdsa_ptr: SignatureBuiltin*
-    }(public_key : felt,        
-        calldata_len : felt,
-        calldata : felt*,
-        sig : (felt, felt)):
+    }(public_key : felt):
+
     let (is_caller_owner) = multisig_is_owner(public_key=public_key)
     with_attr error_message("not owner"):
         assert is_caller_owner = TRUE
     end
 
+    return ()
+end
+
+# Revert if the provided data is not signed by the owner
+func verify_submit_signature{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(public_key : felt,        
+        calldata_len : felt,
+        calldata : felt*,
+        sig : (felt, felt)):
+        
+    # Make sure the owner has signed this data
     let hashval : felt = _get_calldata_hash(calldata_len - 1, calldata_len, calldata)
+
+    verify_ecdsa_signature(
+        message=hashval,
+        public_key=public_key,
+        signature_r=sig[0],
+        signature_s=sig[1],
+    )
+
+    return ()
+end
+
+# Revert if the provided data is not signed by the owner
+func verify_confirm_signature{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(public_key : felt,        
+        tx_index : felt,
+        sig : (felt, felt)):
+        
+    # Make sure the owner has signed this data
+    let hashval : felt = hash2{hash_ptr=pedersen_ptr}(0, tx_index)
 
     verify_ecdsa_signature(
         message=hashval,
@@ -389,9 +425,10 @@ func multisig_submit_transaction{
         sig : (felt, felt)
     ):
     alloc_locals
-
+    
+    require_owner(public_key)
     # TODO: Should include more info, such as nonce, target, chainid, ...
-    require_owner(public_key, calldata_len, calldata, sig)
+    verify_submit_signature(public_key, calldata_len, calldata, sig)
 
     let (tx_index) = _next_tx_index.read()
 
@@ -416,30 +453,40 @@ func multisig_submit_transaction{
     return ()
 end
 
-# func multisig_confirm_transaction{
-#         syscall_ptr : felt*,
-#         pedersen_ptr : HashBuiltin*,
-#         range_check_ptr
-#     }(tx_index : felt):
-#     require_owner()
-#     require_tx_exists(tx_index=tx_index)
-#     require_not_executed(tx_index=tx_index)
-#     require_not_confirmed(tx_index=tx_index)
+func multisig_confirm_transaction{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(
+        tx_index : felt,
+        public_key : felt,
+        sig : (felt, felt)):
+    alloc_locals
+    require_owner(public_key)
+    # TODO: Should include more info, such as nonce, target, chainid, ...
+    verify_confirm_signature(public_key, tx_index, sig)
+    require_tx_exists(tx_index=tx_index)
+    require_not_executed(tx_index=tx_index)
+    require_not_confirmed(tx_index=tx_index)
 
-#     let (num_confirmations) = _transactions.read(
-#         tx_index=tx_index, field=Transaction.num_confirmations
-#     )
-#     _transactions.write(
-#         tx_index=tx_index,
-#         field=Transaction.num_confirmations,
-#         value=num_confirmations + 1,
-#     )
-#     let (caller) = get_caller_address()
-#     _is_confirmed.write(tx_index=tx_index, owner=caller, value=TRUE)
+    # Needed for some variable revocations
+    local pedersen_ptr : HashBuiltin* = pedersen_ptr
 
-#     ConfirmTransaction.emit(owner=caller, tx_index=tx_index)
-#     return ()
-# end
+    let (num_confirmations) = _transactions.read(
+        tx_index=tx_index, field=Transaction.num_confirmations
+    )
+    _transactions.write(
+        tx_index=tx_index,
+        field=Transaction.num_confirmations,
+        value=num_confirmations + 1,
+    )
+
+    _is_confirmed.write(tx_index=tx_index, owner=public_key, value=TRUE)
+
+    ConfirmTransaction.emit(owner=public_key, tx_index=tx_index)
+    return ()
+end
 
 # func multisig_revoke_confirmation{
 #         syscall_ptr : felt*,
@@ -466,44 +513,53 @@ end
 #     return ()
 # end
 
-# func multisig_execute_transaction{
-#         syscall_ptr : felt*,
-#         pedersen_ptr : HashBuiltin*,
-#         range_check_ptr
-#     }(tx_index : felt) -> (
-#         response_len: felt,
-#         response: felt*,
-#     ):
-#     require_owner()
-#     require_tx_exists(tx_index=tx_index)
-#     require_not_executed(tx_index=tx_index)
+func multisig_execute_transaction{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(tx_index : felt,
+    public_key : felt,
+    sig : (felt, felt)) -> (
+        response_len: felt,
+        response: felt*,
+    ):
+    alloc_locals
+    require_owner(public_key)
+    # TODO: Should include more info, such as nonce, target, chainid, ...
+    verify_confirm_signature(public_key, tx_index, sig)
+    require_tx_exists(tx_index=tx_index)
+    require_not_executed(tx_index=tx_index)
 
-#     let (tx, tx_calldata_len, tx_calldata) = multisig_get_transaction(tx_index=tx_index)
+    # Needed for some variable revocations
+    local pedersen_ptr : HashBuiltin* = pedersen_ptr
 
-#     # Require minimum configured confirmations
-#     let (required_confirmations) = _confirmations_required.read()
-#     with_attr error_message("need more confirmations"):
-#         assert_le(required_confirmations, tx.num_confirmations)
-#     end
+    let (tx, tx_calldata_len, tx_calldata) = multisig_get_transaction(tx_index=tx_index)
 
-#     # Mark as executed
-#     _transactions.write(
-#         tx_index=tx_index,
-#         field=Transaction.executed,
-#         value=TRUE,
-#     )
-#     let (caller) = get_caller_address()
-#     ExecuteTransaction.emit(owner=caller, tx_index=tx_index)
+    # Require minimum configured confirmations
+    let (required_confirmations) = _confirmations_required.read()
+    with_attr error_message("need more confirmations"):
+        assert_le(required_confirmations, tx.num_confirmations)
+    end
 
-#     # Actually execute it
-#     let response = call_contract(
-#         contract_address=tx.to,
-#         function_selector=tx.function_selector,
-#         calldata_size=tx_calldata_len,
-#         calldata=tx_calldata,
-#     )
-#     return (response_len=response.retdata_size, response=response.retdata)
-# end
+    # Mark as executed
+    _transactions.write(
+        tx_index=tx_index,
+        field=Transaction.executed,
+        value=TRUE,
+    )
+    let (caller) = get_caller_address()
+    ExecuteTransaction.emit(owner=caller, tx_index=tx_index)
+
+    # Actually execute it
+    let response = call_contract(
+        contract_address=tx.to,
+        function_selector=tx.function_selector,
+        calldata_size=tx_calldata_len,
+        calldata=tx_calldata,
+    )
+    return (response_len=response.retdata_size, response=response.retdata)
+end
 
 #
 # Storage Helpers

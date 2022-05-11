@@ -1,9 +1,9 @@
 from starkware.crypto.signature.signature import (
     pedersen_hash, private_to_stark_key, sign)
-private_key = 12345
+private_key = 123456
 public_key = private_to_stark_key(private_key)
 
-message_hash = pedersen_hash(0, 7)
+message_hash = pedersen_hash(0, 0)
 #message_hash = pedersen_hash(message_hash4, 123)
 
 signature = sign(

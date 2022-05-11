@@ -29,9 +29,9 @@ from account.multisig_library import (
     multisig_get_transaction,
     multisig_initializer,
     multisig_submit_transaction,
-    #multisig_confirm_transaction,
+    multisig_confirm_transaction,
    # multisig_revoke_confirmation,
-    #multisig_execute_transaction
+    multisig_execute_transaction
 )
 
 #
@@ -181,6 +181,34 @@ func submit_transaction{
         public_key : felt,
         sig : (felt, felt)):
     multisig_submit_transaction(to, function_selector, calldata_len, calldata, public_key, sig)
+    return ()
+end
+
+@external
+func confirm_transaction{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(
+        tx_index : felt,
+        public_key : felt,
+        sig : (felt, felt)):
+    multisig_confirm_transaction(tx_index, public_key, sig)
+    return ()
+end
+
+@external
+func execute_transaction{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr,
+        ecdsa_ptr: SignatureBuiltin*
+    }(
+        tx_index : felt,
+        public_key : felt,
+        sig : (felt, felt)):
+    multisig_execute_transaction(tx_index, public_key, sig)
     return ()
 end
 
