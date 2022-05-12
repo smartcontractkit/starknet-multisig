@@ -68,6 +68,19 @@ func supportsInterface{
     return (success)
 end
 
+@view
+func get_transaction{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(tx_index: felt) -> (
+        tx : Transaction,
+        tx_calldata_len : felt,
+        tx_calldata : felt*,):
+    let (tx, tx_calldata_len, tx_calldata) = multisig_get_transaction(tx_index)
+    return (tx=tx, tx_calldata_len=tx_calldata_len, tx_calldata=tx_calldata)
+end
+
 #
 # Setters
 #

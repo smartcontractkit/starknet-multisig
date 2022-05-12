@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { assert } from "console";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { starknet } from "hardhat";
 import {
   StarknetContract,
@@ -35,17 +35,42 @@ describe("Multisig with single owner", function () {
     const publicKey = ec.getStarkKey(kp);
     const signature = ec.sign(kp, messageHash);
 
+    await starknet.devnet.restart();
+
     console.log("Deployment Tx - Account Contract to StarkNet...");
+
+    const targetContractFactory = await starknet.getContractFactory(
+      "contracts/multisig/mock/Target"
+    );
+    const targetContract = await targetContractFactory.deploy(
+      {},
+      { salt: "0x1" }
+    );
+
+    console.log("target adddress", targetContract.address);
 
     const accountContractFactory = await starknet.getContractFactory(
       "contracts/account/Account"
     );
-    const accountContract = await accountContractFactory.deploy({
-      owners: [number.toBN(publicKey)],
-      confirmations_required: 1,
-    });
+    const accountContract = await accountContractFactory.deploy(
+      {
+        owners: [number.toBN(publicKey)],
+        confirmations_required: 1,
+      },
+      { salt: "0x1" }
+    );
     //
     console.log("Deployed account at ", accountContract.address);
+
+    const innerCalldata = [
+      number.toBN(targetContract.address),
+      number.toBN(getSelectorFromName("set_balance")),
+      1,
+      8,
+      number.toBN(publicKey),
+      number.toBN(signature[0]),
+      number.toBN(signature[1]),
+    ];
 
     const calldata = {
       call_array: [
@@ -53,24 +78,15 @@ describe("Multisig with single owner", function () {
           to: number.toBN(accountContract.address),
           selector: number.toBN(getSelectorFromName("submit_transaction")),
           data_offset: 0,
-          data_len: 7,
+          data_len: innerCalldata.length,
         },
       ],
-      calldata: [
-        number.toBN(
-          "0x03af8252c614c634b9ac563745dbff4b102cbda0fc867ae54cc55348c4892bba"
-        ),
-        number.toBN(getSelectorFromName("set_balance")),
-        1,
-        8,
-        number.toBN(publicKey),
-        number.toBN(signature[0]),
-        number.toBN(signature[1]),
-      ],
+      calldata: innerCalldata,
       nonce: 0,
     };
 
-    await accountContract.invoke("__execute__", calldata);
+    const txhash = await accountContract.invoke("__execute__", calldata);
+    console.log("real hash", txhash);
   });
 
   describe(" - submit - ", function () {
