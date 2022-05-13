@@ -16,6 +16,7 @@ import {
   Provider,
   stark,
   hash,
+  KeyPair,
 } from "starknet";
 import { transformCallsToMulticallArrays } from "starknet/dist/utils/transaction";
 import { getSelectorFromName } from "starknet/dist/utils/hash";
@@ -31,15 +32,20 @@ describe("Multisig with single owner", function () {
 
   let account: Account;
   let acc: Contract;
-  let nonOwner: Account;
+  //let nonOwner: Account;
   let accountAddress: string;
-  let privateKey: number = 12345;
-  let publicKey: string;
+  //let signer1PublicKey: string;
 
   let txIndex = -1; // faster to track this internally than to request from contract
+  let nonce = -1; // faster to track this internally than to request from contract
 
-  const kp = starkwareCrypto.ec.keyFromPrivate([privateKey]);
-  publicKey = ec.getStarkKey(kp);
+  const signer1Kp = starkwareCrypto.ec.keyFromPrivate([12345]);
+  //signer1PublicKey = ec.getStarkKey(signer1Kp);
+
+  const nonSignerKp = starkwareCrypto.ec.keyFromPrivate([7654]);
+
+  //console.log("public", signer1PublicKey);
+  const setBalSelector = number.toBN(getSelectorFromName("set_balance"));
 
   // should be beforeeach, but that'd be horribly slow. Just remember that the tests are not idempotent
   before(async function () {
@@ -62,109 +68,137 @@ describe("Multisig with single owner", function () {
     );
     accountContract = await accountContractFactory.deploy(
       {
-        owners: [number.toBN(publicKey)],
+        owners: [number.toBN(ec.getStarkKey(signer1Kp))],
         confirmations_required: 1,
       }
       // { salt: "0x1" }
     );
-    //
+
     console.log("Deployed account at ", accountContract.address);
   });
+
+  const submit = async (keypair: KeyPair, targetValue: number) => {
+    nonce++;
+    const messageHash = calcHash([targetValue.toString()]);
+    const signature = ec.sign(keypair, messageHash);
+
+    const innerCalldata = [
+      number.toBN(targetContract.address),
+      setBalSelector,
+      1,
+      targetValue,
+      number.toBN(ec.getStarkKey(keypair)),
+      number.toBN(signature[0]),
+      number.toBN(signature[1]),
+    ];
+
+    const calldata = {
+      call_array: [
+        {
+          to: number.toBN(accountContract.address),
+          selector: number.toBN(getSelectorFromName("submit_transaction")),
+          data_offset: 0,
+          data_len: innerCalldata.length,
+        },
+      ],
+      calldata: innerCalldata,
+      nonce: nonce,
+    };
+
+    await accountContract.invoke("__execute__", calldata);
+  };
+
+  const confirmExecute = async (
+    keypair: KeyPair,
+    txIndex: number,
+    isExecute: boolean
+  ) => {
+    nonce++;
+    const messageHash = calcHash([txIndex.toString()]); //starkwareCrypto.pedersen(["0", txIndex.toString()]);
+
+    const signature = ec.sign(keypair, messageHash);
+    let func = "confirm_transaction";
+    if (isExecute) {
+      func = "execute_transaction";
+    }
+
+    const innerCalldata = [
+      txIndex,
+      number.toBN(ec.getStarkKey(keypair)),
+      number.toBN(signature[0]),
+      number.toBN(signature[1]),
+    ];
+
+    const calldata = {
+      call_array: [
+        {
+          to: number.toBN(accountContract.address),
+          selector: number.toBN(getSelectorFromName(func)),
+          data_offset: 0,
+          data_len: innerCalldata.length,
+        },
+      ],
+      calldata: innerCalldata,
+      nonce: nonce,
+    };
+
+    await accountContract.invoke("__execute__", calldata);
+  };
+
+  const calcHash = (pars: string[]) => {
+    const res = pars.reduce(
+      (prev, curr) => starkwareCrypto.pedersen([prev, curr]),
+      "0"
+    );
+    return res;
+  };
 
   describe(" - submit - ", function () {
     it("transaction submit works", async function () {
       txIndex++;
 
-      const targetSelector = number.toBN(getSelectorFromName("set_balance"));
-      const submitSelector = number.toBN(
-        getSelectorFromName("submit_transaction")
-      );
-      console.log("target selector", targetSelector, targetSelector.toString());
-      console.log("submit selector", submitSelector, submitSelector.toString());
-
-      const messageHash = starkwareCrypto.pedersen(["0", "8"]);
-
-      const signature = ec.sign(kp, messageHash);
-      const selector = number.toBN(getSelectorFromName("set_balance"));
-
-      const innerCalldata = [
-        number.toBN(targetContract.address),
-        selector,
-        1,
-        8,
-        number.toBN(publicKey),
-        number.toBN(signature[0]),
-        number.toBN(signature[1]),
-      ];
-
-      const calldata = {
-        call_array: [
-          {
-            to: number.toBN(accountContract.address),
-            selector: number.toBN(getSelectorFromName("submit_transaction")),
-            data_offset: 0,
-            data_len: innerCalldata.length,
-          },
-        ],
-        calldata: innerCalldata,
-        nonce: 0,
-      };
-
-      const txhash = await accountContract.invoke("__execute__", calldata);
+      await submit(signer1Kp, 8);
 
       const res = await accountContract.call("get_transaction", {
         tx_index: txIndex,
       });
-      console.log("getting", res.tx.to, res.tx.to.toString());
+
       expect(res.tx.to.toString()).to.equal(
         number.hexToDecimalString(targetContract.address)
       );
-      expect(res.tx.function_selector.toString()).to.equal(selector.toString());
+      expect(res.tx.function_selector.toString()).to.equal(
+        setBalSelector.toString()
+      );
       expect(res.tx.calldata_len).to.equal(1n);
       expect(res.tx.executed).to.equal(0n);
       expect(res.tx.num_confirmations).to.equal(0n);
       expect(res.tx_calldata_len).to.equal(1n);
       expect(res.tx_calldata[0]).to.equal(8n);
     });
-    /* 
+
     it("transaction execute works", async function () {
       txIndex++;
 
-      const payload = defaultPayload(targetContract.address, txIndex * 2);
-      await account.invoke(multisig, "submit_transaction", payload);
-      await account.invoke(multisig, "confirm_transaction", {
-        tx_index: txIndex,
-      });
-      await account.invoke(multisig, "execute_transaction", {
-        tx_index: txIndex,
-      });
+      await submit(signer1Kp, 9);
+      await confirmExecute(signer1Kp, txIndex, false);
+      await confirmExecute(signer1Kp, txIndex, true);
 
       const bal = await targetContract.call("get_balance");
-      expect(bal.res).to.equal(BigInt(txIndex * 2));
+      expect(bal.res).to.equal(9n);
     });
 
     it("transaction execute works for subsequent transactions", async function () {
       txIndex++;
 
-      let payload = defaultPayload(targetContract.address, txIndex * 2);
-      await account.invoke(multisig, "submit_transaction", payload);
-      await account.invoke(multisig, "confirm_transaction", {
-        tx_index: txIndex,
-      });
-      await account.invoke(multisig, "execute_transaction", {
-        tx_index: txIndex,
-      });
+      await submit(signer1Kp, txIndex * 2);
+      await confirmExecute(signer1Kp, txIndex, false);
+      await confirmExecute(signer1Kp, txIndex, true);
 
       txIndex++;
       // submit another transaction with the same multisig
-      payload = defaultPayload(targetContract.address, txIndex * 2);
-      await account.invoke(multisig, "submit_transaction", payload);
-      await account.invoke(multisig, "confirm_transaction", {
-        tx_index: txIndex,
-      });
-      await account.invoke(multisig, "execute_transaction", {
-        tx_index: txIndex,
-      });
+      await submit(signer1Kp, txIndex * 2);
+      await confirmExecute(signer1Kp, txIndex, false);
+      await confirmExecute(signer1Kp, txIndex, true);
 
       const bal = await targetContract.call("get_balance");
       expect(bal.res).to.equal(BigInt(txIndex * 2));
@@ -173,8 +207,6 @@ describe("Multisig with single owner", function () {
     it("transaction with complex arguments work", async function () {
       txIndex++;
 
-      const selector = number.toBN(getSelectorFromName("complex_inputs"));
-      const target = number.toBN(targetContract.address);
       const simpleArray = [1, 2, 3];
       const structArrayData = [
         { first: 4, second: 5 },
@@ -186,31 +218,50 @@ describe("Multisig with single owner", function () {
       );
 
       // Calldata has 1) a simple number array 2) an array with struct elements containing numbers
-      const calldata = [
+      const targetCalldata = [
         simpleArray.length,
         ...simpleArray,
         structArrayData.length,
         ...structArray,
       ];
-      const payload = {
-        to: target,
-        function_selector: selector,
-        calldata: calldata,
+
+      const messageHash = calcHash(targetCalldata);
+      const signature = ec.sign(signer1Kp, messageHash);
+
+      const innerCalldata = [
+        number.toBN(targetContract.address),
+        number.toBN(getSelectorFromName("complex_inputs")),
+        targetCalldata.length,
+        ...targetCalldata,
+        number.toBN(ec.getStarkKey(signer1Kp)),
+        number.toBN(signature[0]),
+        number.toBN(signature[1]),
+      ];
+
+      nonce++;
+      const calldata = {
+        call_array: [
+          {
+            to: number.toBN(accountContract.address),
+            selector: number.toBN(getSelectorFromName("submit_transaction")),
+            data_offset: 0,
+            data_len: innerCalldata.length,
+          },
+        ],
+        calldata: innerCalldata,
+        nonce: nonce,
       };
 
-      await account.invoke(multisig, "submit_transaction", payload);
-      await account.invoke(multisig, "confirm_transaction", {
-        tx_index: txIndex,
-      });
-      await account.invoke(multisig, "execute_transaction", {
-        tx_index: txIndex,
-      });
+      await accountContract.invoke("__execute__", calldata);
+      await confirmExecute(signer1Kp, txIndex, false);
+      await confirmExecute(signer1Kp, txIndex, true);
 
-      const bal = await targetContract.call("getArraySum");
       const sum = simpleArray
         .concat(Object.values(structArrayData[0]))
         .concat(Object.values(structArrayData[1]))
         .reduce((a, b) => a + b, 0);
+
+      const bal = await targetContract.call("getArraySum");
 
       expect(bal.res).to.equal(BigInt(sum));
     });
@@ -218,13 +269,10 @@ describe("Multisig with single owner", function () {
     it("transaction execute fails if no confirmations", async function () {
       txIndex++;
 
-      const payload = defaultPayload(targetContract.address, txIndex * 2);
-      await account.invoke(multisig, "submit_transaction", payload);
+      await submit(signer1Kp, 9);
 
       try {
-        await account.invoke(multisig, "execute_transaction", {
-          tx_index: txIndex,
-        });
+        await confirmExecute(signer1Kp, txIndex, true);
         expect.fail("Should have failed");
       } catch (err: any) {
         assertErrorMsg(err.message, "need more confirmations");
@@ -232,15 +280,33 @@ describe("Multisig with single owner", function () {
     });
 
     it("non-owner can't submit a transaction", async function () {
-      const payload = defaultPayload(targetContract.address, txIndex * 2);
-
       try {
-        await nonOwner.invoke(multisig, "submit_transaction", payload);
+        await submit(nonSignerKp, 9);
         expect.fail("Should have failed");
       } catch (err: any) {
+        console.log("error", err);
         assertErrorMsg(err.message, "not owner");
       }
-    }); */
+    });
+
+    /* 
+      const d = (a: string, b: string): string => {
+        return starkwareCrypto.pedersen([a.toString(), b.toString()]);
+      };
+
+      const a = d(
+        d(d(d(d(d(d(d(d("0", "3"), "1"), "2"), "3"), "2"), "4"), "5"), "6"),
+        "7"
+      );
+      const b = starkwareCrypto.pedersen(["0", "3"]);
+      console.log("it is", a, b); */
+
+    /*       await account.invoke(multisig, "confirm_transaction", {
+        tx_index: txIndex,
+      });
+      await account.invoke(multisig, "execute_transaction", {
+        tx_index: txIndex,
+      }); */
   });
   /* 
   describe("- confirmation - ", function () {

@@ -3,7 +3,8 @@ from starkware.crypto.signature.signature import (
 private_key = 12345
 public_key = private_to_stark_key(private_key)
 
-message_hash = pedersen_hash(0, 8)
+message_hash = pedersen_hash(pedersen_hash(pedersen_hash(pedersen_hash(pedersen_hash(pedersen_hash(pedersen_hash(pedersen_hash(pedersen_hash(0, 3), 1), 2), 3), 2), 4), 5), 6), 7)
+message_hash2 = pedersen_hash(0, 3)
 #message_hash = pedersen_hash(message_hash4, 123)
 
 signature = sign(
@@ -11,3 +12,4 @@ signature = sign(
 print(f'Public key: {public_key}')
 print(f'Signature: {signature}')
 print(f'Message hash: {message_hash}')
+print(f'Message hash2: {message_hash2}')

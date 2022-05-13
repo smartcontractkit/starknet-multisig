@@ -7,6 +7,7 @@ from starkware.starknet.common.syscalls import get_tx_signature
 from starkware.cairo.common.math import unsigned_div_rem
 from starkware.cairo.common.alloc import alloc
 from multisig.util import almost_equal as aeq
+from starkware.cairo.common.hash import hash2
 
 # Define a storage variable.
 @storage_var
@@ -47,6 +48,17 @@ func set_balance{
         range_check_ptr}(_balance : felt):
     balance.write(_balance)
     return ()
+end
+
+@view
+func gethash{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
+    range_check_ptr}() -> (res : felt):
+
+    alloc_locals
+    let (hashval2) = hash2{hash_ptr=pedersen_ptr}(0, 3)
+
+    return (hashval2)
 end
 
 # Returns the current balance.

@@ -29,7 +29,36 @@ describe("Multisig with single owner", function () {
   this.timeout(3000_000);
 
   before(async function () {
-    const messageHash = starkwareCrypto.pedersen(["0", "8"]);
+    /*
+      1. generate keypair
+      2. get its private and public key
+      3. generate a new keypair using the private key
+      4. Verify that the public key from the new keypair is the same as the originally generated keypair's - basically means the new keypair is the same as the already generated one
+    */
+    const gen = (index: number) => {
+      const starkKeyPair = ec.genKeyPair();
+      const starkKeyPub = ec.getStarkKey(starkKeyPair);
+      const starkKeyPriv = starkKeyPair.getPrivate().toString();
+
+      // Verify: use the private key to generate public key
+      const newPair = ec.getKeyPair(starkKeyPriv);
+      const newPub = ec.getStarkKey(newPair);
+
+      if (newPub != starkKeyPub) {
+        throw "Problems";
+      }
+
+      console.log(
+        "Key " + index + ": ",
+        "private key: " + starkKeyPriv,
+        "public key: " + starkKeyPub
+      );
+    };
+    for (let i = 0; i < 7; i++) {
+      gen(i);
+    }
+
+    /* const messageHash = starkwareCrypto.pedersen(["0", "8"]);
 
     const kp = starkwareCrypto.ec.keyFromPrivate([12345]);
     const publicKey = ec.getStarkKey(kp);
@@ -86,7 +115,7 @@ describe("Multisig with single owner", function () {
     };
 
     const txhash = await accountContract.invoke("__execute__", calldata);
-    console.log("real hash", txhash);
+    console.log("real hash", txhash); */
   });
 
   describe(" - submit - ", function () {
