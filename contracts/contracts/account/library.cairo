@@ -164,7 +164,7 @@ func Account_execute{
     let (_current_nonce) = Account_current_nonce.read()
 
     # validate nonce TODO: re-enable
-    #assert _current_nonce = nonce
+    assert _current_nonce = nonce
 
     # TMP: Convert `AccountCallArray` to 'Call'.
     let (calls : Call*) = alloc()

@@ -105,7 +105,12 @@ describe("Multisig with single owner", function () {
       nonce: nonce,
     };
 
-    await accountContract.invoke("__execute__", calldata);
+    try {
+      await accountContract.invoke("__execute__", calldata);
+    } catch (err) {
+      nonce--;
+      throw err;
+    }
   };
 
   const confirmExecute = async (
@@ -141,8 +146,12 @@ describe("Multisig with single owner", function () {
       calldata: innerCalldata,
       nonce: nonce,
     };
-
-    await accountContract.invoke("__execute__", calldata);
+    try {
+      await accountContract.invoke("__execute__", calldata);
+    } catch (err) {
+      nonce--;
+      throw err;
+    }
   };
 
   const calcHash = (pars: string[]) => {
