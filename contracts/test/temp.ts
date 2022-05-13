@@ -35,7 +35,7 @@ describe("Multisig with single owner", function () {
       3. generate a new keypair using the private key
       4. Verify that the public key from the new keypair is the same as the originally generated keypair's - basically means the new keypair is the same as the already generated one
     */
-    const gen = (index: number) => {
+    /*     const gen = (index: number) => {
       const starkKeyPair = ec.genKeyPair();
       const starkKeyPub = ec.getStarkKey(starkKeyPair);
       const starkKeyPriv = starkKeyPair.getPrivate().toString();
@@ -56,9 +56,12 @@ describe("Multisig with single owner", function () {
     };
     for (let i = 0; i < 7; i++) {
       gen(i);
-    }
+    } */
+    const messageHash = hash.pedersen([0, 10]); //starkwareCrypto.pedersen(["0", "1"]);
+    //const messageHash2 = starkwareCrypto.pedersen([messageHash, "0"]);
 
-    /* const messageHash = starkwareCrypto.pedersen(["0", "8"]);
+    console.log("hash", messageHash);
+    /* 
 
     const kp = starkwareCrypto.ec.keyFromPrivate([12345]);
     const publicKey = ec.getStarkKey(kp);

@@ -26,25 +26,15 @@ import * as starkwareCrypto from "@toruslabs/starkware-crypto";
 describe("Multisig with single owner", function () {
   this.timeout(3000_000);
 
-  let contractFactory: StarknetContractFactory;
   let targetContract: StarknetContract;
   let accountContract: StarknetContract;
-
-  let account: Account;
-  let acc: Contract;
-  //let nonOwner: Account;
-  let accountAddress: string;
-  //let signer1PublicKey: string;
 
   let txIndex = -1; // faster to track this internally than to request from contract
   let nonce = -1; // faster to track this internally than to request from contract
 
   const signer1Kp = starkwareCrypto.ec.keyFromPrivate([12345]);
-  //signer1PublicKey = ec.getStarkKey(signer1Kp);
-
   const nonSignerKp = starkwareCrypto.ec.keyFromPrivate([7654]);
 
-  //console.log("public", signer1PublicKey);
   const setBalSelector = number.toBN(getSelectorFromName("set_balance"));
 
   // should be beforeeach, but that'd be horribly slow. Just remember that the tests are not idempotent
@@ -119,7 +109,7 @@ describe("Multisig with single owner", function () {
     isExecute: boolean
   ) => {
     nonce++;
-    const messageHash = calcHash([txIndex.toString()]); //starkwareCrypto.pedersen(["0", txIndex.toString()]);
+    const messageHash = calcHash([txIndex.toString()]);
 
     const signature = ec.sign(keypair, messageHash);
     let func = "confirm_transaction";
@@ -155,10 +145,7 @@ describe("Multisig with single owner", function () {
   };
 
   const calcHash = (pars: string[]) => {
-    const res = pars.reduce(
-      (prev, curr) => starkwareCrypto.pedersen([prev, curr]),
-      "0"
-    );
+    const res = pars.reduce((prev, curr) => hash.pedersen([prev, curr]), "0");
     return res;
   };
 
@@ -288,7 +275,7 @@ describe("Multisig with single owner", function () {
       }
     });
 
-    it("non-owner can't submit a transaction", async function () {
+    it("non-signer can't submit a transaction", async function () {
       try {
         await submit(nonSignerKp, 9);
         expect.fail("Should have failed");
@@ -297,38 +284,16 @@ describe("Multisig with single owner", function () {
         assertErrorMsg(err.message, "not owner");
       }
     });
-
-    /* 
-      const d = (a: string, b: string): string => {
-        return starkwareCrypto.pedersen([a.toString(), b.toString()]);
-      };
-
-      const a = d(
-        d(d(d(d(d(d(d(d("0", "3"), "1"), "2"), "3"), "2"), "4"), "5"), "6"),
-        "7"
-      );
-      const b = starkwareCrypto.pedersen(["0", "3"]);
-      console.log("it is", a, b); */
-
-    /*       await account.invoke(multisig, "confirm_transaction", {
-        tx_index: txIndex,
-      });
-      await account.invoke(multisig, "execute_transaction", {
-        tx_index: txIndex,
-      }); */
   });
-  /* 
+
   describe("- confirmation - ", function () {
-    it("non-owner can't confirm a transaction", async function () {
+    it("non-signer can't confirm a transaction", async function () {
       txIndex++;
 
-      const payload = defaultPayload(targetContract.address, txIndex * 2);
-      await account.invoke(multisig, "submit_transaction", payload);
+      await submit(signer1Kp, txIndex * 2);
 
       try {
-        await nonOwner.invoke(multisig, "confirm_transaction", {
-          tx_index: txIndex,
-        });
+        await confirmExecute(nonSignerKp, txIndex, false);
         expect.fail("Should have failed");
       } catch (err: any) {
         assertErrorMsg(err.message, "not owner");
@@ -337,11 +302,10 @@ describe("Multisig with single owner", function () {
 
     it("can't confirm a non-existing transaction", async function () {
       try {
-        await account.invoke(multisig, "confirm_transaction", {
-          tx_index: txIndex + 500,
-        });
+        await confirmExecute(signer1Kp, txIndex + 500, false);
         expect.fail("Should have failed");
       } catch (err: any) {
+        console.log("error", err);
         assertErrorMsg(err.message, "tx does not exist");
       }
     });
@@ -349,21 +313,12 @@ describe("Multisig with single owner", function () {
     it("can't confirm an executed transaction", async function () {
       txIndex++;
 
-      const payload = defaultPayload(targetContract.address, txIndex * 2);
-      await account.invoke(multisig, "submit_transaction", payload);
-
-      await account.invoke(multisig, "confirm_transaction", {
-        tx_index: txIndex,
-      });
-
-      await account.invoke(multisig, "execute_transaction", {
-        tx_index: txIndex,
-      });
+      await submit(signer1Kp, txIndex * 2);
+      await confirmExecute(signer1Kp, txIndex, false);
+      await confirmExecute(signer1Kp, txIndex, true);
 
       try {
-        await account.invoke(multisig, "confirm_transaction", {
-          tx_index: txIndex,
-        });
+        await confirmExecute(signer1Kp, txIndex, false);
         expect.fail("Should have failed");
       } catch (err: any) {
         assertErrorMsg(err.message, "tx already executed");
@@ -373,24 +328,18 @@ describe("Multisig with single owner", function () {
     it("can't reconfirm a transaction", async function () {
       txIndex++;
 
-      const payload = defaultPayload(targetContract.address, txIndex * 2);
-      await account.invoke(multisig, "submit_transaction", payload);
-
-      await account.invoke(multisig, "confirm_transaction", {
-        tx_index: txIndex,
-      });
+      await submit(signer1Kp, txIndex * 2);
+      await confirmExecute(signer1Kp, txIndex, false);
 
       try {
-        await account.invoke(multisig, "confirm_transaction", {
-          tx_index: txIndex,
-        });
+        await confirmExecute(signer1Kp, txIndex, false);
         expect.fail("Should have failed");
       } catch (err: any) {
         assertErrorMsg(err.message, "tx already confirmed");
       }
     });
   });
-
+  /*
   describe("- revocation -", function () {
     it("non-owner can't revoke a confirmation", async function () {
       txIndex++;
